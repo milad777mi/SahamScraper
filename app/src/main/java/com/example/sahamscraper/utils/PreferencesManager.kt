@@ -6,14 +6,20 @@ import androidx.preference.PreferenceManager
 class PreferencesManager(context: Context) {
     private val prefs = PreferenceManager.getDefaultSharedPreferences(context)
 
-    var intervalHours: Int
-        get() = prefs.getInt("interval_hours", 12)
-        set(value) = prefs.edit().putInt("interval_hours", value).apply()
+    // ==========================================
+    // 🔄 زمان بر حسب میلی‌ثانیه (به جای ساعت)
+    // ==========================================
+    var intervalMillis: Long
+        get() = prefs.getLong("interval_millis", 12 * 60 * 60 * 1000L) // پیش‌فرض ۱۲ ساعت
+        set(value) = prefs.edit().putLong("interval_millis", value).apply()
 
     var lastRunTime: Long
         get() = prefs.getLong("last_run", 0L)
         set(value) = prefs.edit().putLong("last_run", value).apply()
 
+    // ==========================================
+    // 📌 ذخیره و بازیابی داده‌های آفلاین
+    // ==========================================
     fun savePendingPrices(price490: String, price532: String, price1000: String) {
         prefs.edit().apply {
             putString("pending_price490", price490)
