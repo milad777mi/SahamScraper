@@ -58,13 +58,10 @@ class SahamRepository(private val context: Context) {
                 webViewClient = object : WebViewClient() {
                     override fun onPageFinished(view: WebView?, url: String?) {
                         try {
-                            // 🔥 اسکریپت دقیق‌تر برای استخراج قیمت‌ها با پشتیبانی از ویرگول
                             view?.evaluateJavascript(
                                 """
                                 (function() {
-                                    // بررسی مستقیم از DOM برای پیدا کردن اعداد
                                     var text = document.body.innerText;
-                                    // Regex با پشتیبانی از ویرگول و اعداد فارسی/انگلیسی
                                     var regex = /(\d{1,3}(?:,\d{3})*|\d+)\s*ریال/g;
                                     var matches = [];
                                     var match;
@@ -72,7 +69,6 @@ class SahamRepository(private val context: Context) {
                                         matches.push(match[1]);
                                         if (matches.length === 3) break;
                                     }
-                                    // اگر کمتر از ۳ تا پیدا شد، دوباره با جستجوی کل صفحه
                                     if (matches.length < 3) {
                                         var allText = document.documentElement.innerText;
                                         var regex2 = /(\d{1,3}(?:,\d{3})*|\d+)\s*ریال/g;
@@ -116,7 +112,6 @@ class SahamRepository(private val context: Context) {
                     }
                 }
 
-                // ⏱️ تایم‌اوت ۲۰ ثانیه (بیشتر از قبل)
                 Handler(Looper.getMainLooper()).postDelayed({
                     if (!deferred.isCompleted) {
                         deferred.complete(Prices("نامشخص", "نامشخص", "نامشخص"))
@@ -126,9 +121,12 @@ class SahamRepository(private val context: Context) {
                 loadUrl("https://isignal.ir/saham-edalat/")
             }
 
+            // منتظر دریافت نتیجه
             deferred.await()
         } catch (e: Exception) {
+            // در صورت بروز خطا، مقدار پیش‌فرض تنظیم و بازگردانده می‌شود
             deferred.complete(Prices("نامشخص", "نامشخص", "نامشخص"))
+            deferred.await()
         }
     }
 
