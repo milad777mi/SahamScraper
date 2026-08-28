@@ -1,9 +1,10 @@
 package com.example.sahamscraper.repository
 
 import android.content.Context
+import android.os.Handler
+import android.os.Looper
 import android.webkit.WebView
 import android.webkit.WebViewClient
-import com.example.sahamscraper.api.WorkerApi
 import com.example.sahamscraper.data.Prices
 import com.example.sahamscraper.utils.PreferencesManager
 import kotlinx.coroutines.CompletableDeferred
@@ -14,7 +15,14 @@ import okhttp3.logging.HttpLoggingInterceptor
 import org.json.JSONObject
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
+import retrofit2.http.Body
+import retrofit2.http.POST
 import java.util.concurrent.TimeUnit
+
+interface WorkerApi {
+    @POST("/")
+    suspend fun sendPrices(@Body prices: Prices): retrofit2.Response<String>
+}
 
 class SahamRepository(private val context: Context) {
 
@@ -37,6 +45,9 @@ class SahamRepository(private val context: Context) {
             .create(WorkerApi::class.java)
     }
 
+    // ==========================================
+    // استخراج قیمت‌ها با WebView (با timeout و مدیریت خطا)
+    // ==========================================
     suspend fun extractPricesWithWebView(): Prices = withContext(Dispatchers.Main) {
         val deferred = CompletableDeferred<Prices>()
 
@@ -48,39 +59,51 @@ class SahamRepository(private val context: Context) {
 
             webViewClient = object : WebViewClient() {
                 override fun onPageFinished(view: WebView?, url: String?) {
-                    view?.evaluateJavascript(
-                        """
-                        (function() {
-                            var text = document.body.innerText;
-                            var regex = /(\d{1,3}(?:,\d{3})*|\d+)\s*ریال/g;
-                            var matches = [];
-                            var match;
-                            while ((match = regex.exec(text)) !== null) {
-                                matches.push(match[1]);
-                                if (matches.length === 3) break;
+                    try {
+                        view?.evaluateJavascript(
+                            """
+                            (function() {
+                                var text = document.body.innerText;
+                                var regex = /(\\d{1,3}(?:,\\d{3})*|\\d+)\\s*ریال/g;
+                                var matches = [];
+                                var match;
+                                while ((match = regex.exec(text)) !== null) {
+                                    matches.push(match[1]);
+                                    if (matches.length === 3) break;
+                                }
+                                return JSON.stringify({
+                                    price490: matches[0] || 'نامشخص',
+                                    price532: matches[1] || 'نامشخص',
+                                    price1000: matches[2] || 'نامشخص'
+                                });
+                            })();
+                            """.trimIndent()
+                        ) { result ->
+                            try {
+                                val json = JSONObject(result.trim())
+                                val prices = Prices(
+                                    price490 = json.getString("price490"),
+                                    price532 = json.getString("price532"),
+                                    price1000 = json.getString("price1000")
+                                )
+                                deferred.complete(prices)
+                            } catch (e: Exception) {
+                                deferred.complete(Prices("نامشخص", "نامشخص", "نامشخص"))
                             }
-                            return JSON.stringify({
-                                price490: matches[0] || 'نامشخص',
-                                price532: matches[1] || 'نامشخص',
-                                price1000: matches[2] || 'نامشخص'
-                            });
-                        })();
-                        """.trimIndent()
-                    ) { result ->
-                        try {
-                            val json = JSONObject(result.trim())
-                            val prices = Prices(
-                                price490 = json.getString("price490"),
-                                price532 = json.getString("price532"),
-                                price1000 = json.getString("price1000")
-                            )
-                            deferred.complete(prices)
-                        } catch (e: Exception) {
-                            deferred.complete(Prices("نامشخص", "نامشخص", "نامشخص"))
                         }
+                    } catch (e: Exception) {
+                        deferred.complete(Prices("نامشخص", "نامشخص", "نامشخص"))
                     }
                 }
             }
+
+            // Timeout برای WebView (۱۰ ثانیه)
+            Handler(Looper.getMainLooper()).postDelayed({
+                if (!deferred.isCompleted) {
+                    deferred.complete(Prices("نامشخص", "نامشخص", "نامشخص"))
+                }
+            }, 10000)
+
             loadUrl("https://isignal.ir/saham-edalat/")
         }
 
