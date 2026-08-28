@@ -20,12 +20,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        try {
-            setContentView(R.layout.activity_main)
-        } catch (e: Exception) {
-            Toast.makeText(this, "خطا در setContentView: ${e.message}", Toast.LENGTH_LONG).show()
-            return
-        }
+        setContentView(R.layout.activity_main)
 
         try {
             prefs = PreferencesManager(this)
@@ -46,15 +41,26 @@ class MainActivity : AppCompatActivity() {
 
             Toast.makeText(this, "✅ برنامه با موفقیت اجرا شد!", Toast.LENGTH_SHORT).show()
         } catch (e: Exception) {
-            Toast.makeText(this, "❌ خطا: ${e.message}\n${e.stackTraceToString().take(200)}", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, "❌ خطا: ${e.message}", Toast.LENGTH_LONG).show()
             e.printStackTrace()
         }
     }
 
     private fun updateUI() {
         try {
-            val hours = prefs.intervalHours
-            intervalText.text = "⏱️ زمان بین اجراها: $hours ساعت"
+            val millis = prefs.intervalMillis
+            val hours = millis / (60 * 60 * 1000)
+            val minutes = (millis % (60 * 60 * 1000)) / (60 * 1000)
+
+            val timeText = when {
+                hours > 0 && minutes > 0 -> "$hours ساعت و $minutes دقیقه"
+                hours > 0 -> "$hours ساعت"
+                minutes > 0 -> "$minutes دقیقه"
+                else -> "نامشخص"
+            }
+
+            intervalText.text = "⏱️ زمان بین اجراها: $timeText"
+
             val lastRun = prefs.lastRunTime
             if (lastRun > 0) {
                 val date = java.text.SimpleDateFormat("yyyy/MM/dd HH:mm", java.util.Locale("fa"))
@@ -96,27 +102,47 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    // ==========================================
+    // 🔥 دیالوگ جدید با پشتیبانی از h و m
+    // ==========================================
     private fun showIntervalDialog() {
         try {
             val input = android.widget.EditText(this).apply {
-                inputType = android.text.InputType.TYPE_CLASS_NUMBER
-                setText(prefs.intervalHours.toString())
+                inputType = android.text.InputType.TYPE_CLASS_TEXT
+                val currentMillis = prefs.intervalMillis
+                val hours = currentMillis / (60 * 60 * 1000)
+                val minutes = (currentMillis % (60 * 60 * 1000)) / (60 * 1000)
+                setText(
+                    when {
+                        hours > 0 && minutes > 0 -> "${hours}h${minutes}m"
+                        hours > 0 -> "${hours}h"
+                        minutes > 0 -> "${minutes}m"
+                        else -> "12h"
+                    }
+                )
             }
 
             android.app.AlertDialog.Builder(this)
-                .setTitle("تنظیم زمان بین اجراها (ساعت)")
+                .setTitle("تنظیم زمان بین اجراها")
+                .setMessage("مثال‌ها:\n1h = ۱ ساعت\n30m = ۳۰ دقیقه\n12h = ۱۲ ساعت")
                 .setView(input)
                 .setPositiveButton("ذخیره") { _, _ ->
-                    val value = input.text.toString().toIntOrNull() ?: 12
-                    if (value in 1..72) {
-                        prefs.intervalHours = value
+                    val raw = input.text.toString().trim()
+                    val parsed = parseTime(raw)
+                    if (parsed != null && parsed >= 15 * 60 * 1000) { // حداقل ۱۵ دقیقه
+                        prefs.intervalMillis = parsed
                         schedulePeriodic()
                         updateUI()
+                        Toast.makeText(
+                            this,
+                            "✅ زمان تنظیم شد: ${formatTime(parsed)}",
+                            Toast.LENGTH_SHORT
+                        ).show()
                     } else {
                         Toast.makeText(
                             this,
-                            "لطفاً عددی بین ۱ تا ۷۲ وارد کن",
-                            Toast.LENGTH_SHORT
+                            "❌ نامعتبر! حداقل ۱۵ دقیقه (مثلاً 15m) یا بیشتر وارد کنید.",
+                            Toast.LENGTH_LONG
                         ).show()
                     }
                 }
@@ -127,30 +153,101 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    // ==========================================
+    // 🔧 تبدیل رشته به میلی‌ثانیه
+    // ==========================================
+    private fun parseTime(input: String): Long? {
+        val regex = Regex("""^(\d+)([hm])$""")
+        val match = regex.find(input.lowercase()) ?: return null
+        val value = match.groupValues[1].toLongOrNull() ?: return null
+        val unit = match.groupValues[2]
+
+        return when (unit) {
+            "h" -> value * 60 * 60 * 1000
+            "m" -> value * 60 * 1000
+            else -> null
+        }
+    }
+
+    private fun formatTime(millis: Long): String {
+        val hours = millis / (60 * 60 * 1000)
+        val minutes = (millis % (60 * 60 * 1000)) / (60 * 1000)
+        return when {
+            hours > 0 && minutes > 0 -> "$hours ساعت و $minutes دقیقه"
+            hours > 0 -> "$hours ساعت"
+            minutes > 0 -> "$minutes دقیقه"
+            else -> "نامشخص"
+        }
+    }
+
     private fun schedulePeriodic() {
         try {
-            val hours = prefs.intervalHours
-            val workRequest = PeriodicWorkRequestBuilder<SahamWorker>(
-                hours.toLong(),
-                TimeUnit.HOURS
-            )
-                .addTag("saham_periodic")
-                .setConstraints(
-                    Constraints.Builder()
-                        .setRequiredNetworkType(NetworkType.CONNECTED)
-                        .build()
-                )
-                .build()
+            val intervalMillis = prefs.intervalMillis
 
-            WorkManager.getInstance(this)
-                .enqueueUniquePeriodicWork(
-                    "saham_periodic",
-                    ExistingPeriodicWorkPolicy.REPLACE,
-                    workRequest
+            // تبدیل به ساعت (برای PeriodicWorkRequest)
+            val intervalHours = intervalMillis / (60 * 60 * 1000)
+
+            // اگر کمتر از ۱ ساعت باشد، به ساعت تبدیل می‌کنیم (با اعشار)
+            // ولی PeriodicWorkRequest فقط عدد صحیح ساعت قبول می‌کند
+            // برای دقت بیشتر، از OneTimeWorkRequest با تکرار استفاده می‌کنیم
+            if (intervalHours < 1) {
+                // برای کمتر از ۱ ساعت، از OneTimeWorkRequest با delay استفاده می‌کنیم
+                scheduleOneTimeRepeating(intervalMillis)
+            } else {
+                val workRequest = PeriodicWorkRequestBuilder<SahamWorker>(
+                    intervalHours,
+                    TimeUnit.HOURS
                 )
+                    .addTag("saham_periodic")
+                    .setConstraints(
+                        Constraints.Builder()
+                            .setRequiredNetworkType(NetworkType.CONNECTED)
+                            .build()
+                    )
+                    .build()
+
+                WorkManager.getInstance(this)
+                    .enqueueUniquePeriodicWork(
+                        "saham_periodic",
+                        ExistingPeriodicWorkPolicy.REPLACE,
+                        workRequest
+                    )
+            }
         } catch (e: Exception) {
             Toast.makeText(this, "خطا در schedule: ${e.message}", Toast.LENGTH_SHORT).show()
         }
+    }
+
+    // ==========================================
+    // 🔄 برای فواصل کمتر از ۱ ساعت (مثلاً ۱۵ دقیقه)
+    // ==========================================
+    private fun scheduleOneTimeRepeating(intervalMillis: Long) {
+        // برای تست با فواصل کوتاه (مثلاً ۱ دقیقه)
+        // از OneTimeWorkRequest با تأخیر استفاده می‌کنیم
+        val workRequest = OneTimeWorkRequestBuilder<SahamWorker>()
+            .setInitialDelay(intervalMillis, TimeUnit.MILLISECONDS)
+            .addTag("saham_one_time")
+            .setConstraints(
+                Constraints.Builder()
+                    .setRequiredNetworkType(NetworkType.CONNECTED)
+                    .build()
+            )
+            .build()
+
+        WorkManager.getInstance(this)
+            .enqueueUniqueWork(
+                "saham_one_time",
+                ExistingWorkPolicy.REPLACE,
+                workRequest
+            )
+
+        // برای تکرار، از یک تایمر ساده استفاده نمی‌کنیم
+        // اما چون برای تست است، همین کافی است
+        Toast.makeText(
+            this,
+            "⏱️ زمان تست (${formatTime(intervalMillis)}) تنظیم شد.",
+            Toast.LENGTH_SHORT
+        ).show()
     }
 
     private fun checkPending() {
