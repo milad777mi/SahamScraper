@@ -58,12 +58,11 @@ class SahamRepository(private val context: Context) {
                 settings.useWideViewPort = true
                 settings.domStorageEnabled = true
 
-                // اضافه کردن اینترفیس جاوا
                 addJavascriptInterface(jsInterface, "Android")
 
                 webViewClient = object : WebViewClient() {
                     override fun onPageFinished(view: WebView?, url: String?) {
-                        // اجرای اسکریپت با تاخیر 3 ثانیه برای اطمینان از بارگذاری کامل
+                        // ✅ تاخیر افزایش یافته: 3s → 5s
                         Handler(Looper.getMainLooper()).postDelayed({
                             view?.evaluateJavascript(
                                 """
@@ -77,7 +76,6 @@ class SahamRepository(private val context: Context) {
                                             matches.push(match[1]);
                                             if (matches.length === 3) break;
                                         }
-                                        // اگر کمتر از 3 تا بود، از کل صفحه جستجو کن
                                         if (matches.length < 3) {
                                             var allText = document.documentElement.innerText;
                                             var regex2 = /(\d{1,3}(?:,\d{3})*|\d+)\s*ریال/g;
@@ -89,7 +87,6 @@ class SahamRepository(private val context: Context) {
                                                 if (matches.length === 3) break;
                                             }
                                         }
-                                        // ارسال به Android (Kotlin) از طریق اینترفیس
                                         Android.sendPrices(
                                             matches[0] || '',
                                             matches[1] || '',
@@ -101,17 +98,17 @@ class SahamRepository(private val context: Context) {
                                 })();
                                 """.trimIndent()
                             ) { result ->
-                                // اگر اسکریپت خطا داد، اینترفیس مقدار پیش‌فرض می‌فرستد
+                                // اسکریپت اجرا شد
                             }
-                        }, 3000) // 3 ثانیه تاخیر
+                        }, 5000) // 🔥 5 ثانیه (قبلاً 3 ثانیه)
                     }
                 }
 
                 webChromeClient = object : WebChromeClient() {
                     override fun onProgressChanged(view: WebView?, newProgress: Int) {
                         super.onProgressChanged(view, newProgress)
-                        // اگر بارگذاری کامل شد و deferred هنوز کامل نشده، یک تاخیر دیگر بگذار
                         if (newProgress == 100 && !deferred.isCompleted) {
+                            // ✅ تاخیر افزایش یافته: 2s → 3s
                             Handler(Looper.getMainLooper()).postDelayed({
                                 if (!deferred.isCompleted) {
                                     view?.evaluateJavascript(
@@ -149,7 +146,7 @@ class SahamRepository(private val context: Context) {
                                         """.trimIndent()
                                     ) { result -> }
                                 }
-                            }, 2000)
+                            }, 3000) // 🔥 3 ثانیه (قبلاً 2 ثانیه)
                         }
                     }
                 }
@@ -157,12 +154,12 @@ class SahamRepository(private val context: Context) {
                 loadUrl("https://isignal.ir/saham-edalat/")
             }
 
-            // تایم‌اوت نهایی 25 ثانیه
+            // ✅ تایم‌اوت نهایی افزایش یافته: 25s → 40s
             Handler(Looper.getMainLooper()).postDelayed({
                 if (!deferred.isCompleted) {
                     deferred.complete(Prices("نامشخص", "نامشخص", "نامشخص"))
                 }
-            }, 25000)
+            }, 40000) // 🔥 40 ثانیه (قبلاً 25 ثانیه)
 
             deferred.await()
         } catch (e: Exception) {
