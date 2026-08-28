@@ -76,29 +76,30 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showIntervalDialog() {
-        val dialog = android.app.AlertDialog.Builder(this)
-        val input = android.widget.EditText().apply {
+        val input = android.widget.EditText(this).apply {
             inputType = android.text.InputType.TYPE_CLASS_NUMBER
             setText(prefs.intervalHours.toString())
         }
-        dialog.setTitle("تنظیم زمان بین اجراها (ساعت)")
-        dialog.setView(input)
-        dialog.setPositiveButton("ذخیره") { _, _ ->
-            val value = input.text.toString().toIntOrNull() ?: 12
-            if (value in 1..72) {
-                prefs.intervalHours = value
-                schedulePeriodic()
-                updateUI()
-            } else {
-                android.widget.Toast.makeText(
-                    this,
-                    "لطفاً عددی بین ۱ تا ۷۲ وارد کن",
-                    android.widget.Toast.LENGTH_SHORT
-                ).show()
+
+        android.app.AlertDialog.Builder(this)
+            .setTitle("تنظیم زمان بین اجراها (ساعت)")
+            .setView(input)
+            .setPositiveButton("ذخیره") { _, _ ->
+                val value = input.text.toString().toIntOrNull() ?: 12
+                if (value in 1..72) {
+                    prefs.intervalHours = value
+                    schedulePeriodic()
+                    updateUI()
+                } else {
+                    android.widget.Toast.makeText(
+                        this,
+                        "لطفاً عددی بین ۱ تا ۷۲ وارد کن",
+                        android.widget.Toast.LENGTH_SHORT
+                    ).show()
+                }
             }
-        }
-        dialog.setNegativeButton("لغو", null)
-        dialog.show()
+            .setNegativeButton("لغو", null)
+            .show()
     }
 
     private fun schedulePeriodic() {
