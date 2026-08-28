@@ -1,0 +1,144 @@
+package com.example.sahamscraper
+
+import android.os.Bundle
+import androidx.appcompat.app.AppCompatActivity
+import androidx.work.*
+import com.example.sahamscraper.repository.SahamRepository
+import com.example.sahamscraper.utils.NetworkUtils
+import com.example.sahamscraper.utils.PreferencesManager
+import com.example.sahamscraper.worker.SahamWorker
+import com.google.android.material.button.MaterialButton
+import com.google.android.material.textview.MaterialTextView
+import java.util.concurrent.TimeUnit
+
+class MainActivity : AppCompatActivity() {
+
+    private lateinit var prefs: PreferencesManager
+    private lateinit var statusText: MaterialTextView
+    private lateinit var intervalText: MaterialTextView
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_main)
+
+        prefs = PreferencesManager(this)
+
+        statusText = findViewById(R.id.status_text)
+        intervalText = findViewById(R.id.interval_text)
+
+        val runNowBtn = findViewById<MaterialButton>(R.id.run_now_btn)
+        val setIntervalBtn = findViewById<MaterialButton>(R.id.set_interval_btn)
+
+        updateUI()
+
+        runNowBtn.setOnClickListener { runNow() }
+        setIntervalBtn.setOnClickListener { showIntervalDialog() }
+
+        schedulePeriodic()
+        checkPending()
+    }
+
+    private fun updateUI() {
+        val hours = prefs.intervalHours
+        intervalText.text = "⏱️ زمان بین اجراها: $hours ساعت"
+        val lastRun = prefs.lastRunTime
+        if (lastRun > 0) {
+            val date = java.text.SimpleDateFormat("yyyy/MM/dd HH:mm", java.util.Locale("fa"))
+            statusText.text = "🕒 آخرین اجرا: ${date.format(java.util.Date(lastRun))}"
+        } else {
+            statusText.text = "⏳ هنوز اجرا نشده"
+        }
+    }
+
+    private fun runNow() {
+        val workRequest = OneTimeWorkRequestBuilder<SahamWorker>()
+            .setConstraints(
+                Constraints.Builder()
+                    .setRequiredNetworkType(NetworkType.CONNECTED)
+                    .build()
+            )
+            .build()
+
+        WorkManager.getInstance(this).enqueue(workRequest)
+        statusText.text = "⏳ در حال اجرا..."
+
+        WorkManager.getInstance(this).getWorkInfoByIdLiveData(workRequest.id)
+            .observe(this) { info ->
+                if (info != null && info.state.isFinished) {
+                    statusText.text = if (info.state == WorkInfo.State.SUCCEEDED) {
+                        "✅ اجرا موفق"
+                    } else {
+                        "❌ اجرا ناموفق"
+                    }
+                    updateUI()
+                }
+            }
+    }
+
+    private fun showIntervalDialog() {
+        val dialog = android.app.AlertDialog.Builder(this)
+        val input = android.widget.EditText().apply {
+            inputType = android.text.InputType.TYPE_CLASS_NUMBER
+            setText(prefs.intervalHours.toString())
+        }
+        dialog.setTitle("تنظیم زمان بین اجراها (ساعت)")
+        dialog.setView(input)
+        dialog.setPositiveButton("ذخیره") { _, _ ->
+            val value = input.text.toString().toIntOrNull() ?: 12
+            if (value in 1..72) {
+                prefs.intervalHours = value
+                schedulePeriodic()
+                updateUI()
+            } else {
+                android.widget.Toast.makeText(
+                    this,
+                    "لطفاً عددی بین ۱ تا ۷۲ وارد کن",
+                    android.widget.Toast.LENGTH_SHORT
+                ).show()
+            }
+        }
+        dialog.setNegativeButton("لغو", null)
+        dialog.show()
+    }
+
+    private fun schedulePeriodic() {
+        val hours = prefs.intervalHours
+        val workRequest = PeriodicWorkRequestBuilder<SahamWorker>(
+            hours.toLong(),
+            TimeUnit.HOURS
+        )
+            .addTag("saham_periodic")
+            .setConstraints(
+                Constraints.Builder()
+                    .setRequiredNetworkType(NetworkType.CONNECTED)
+                    .build()
+            )
+            .build()
+
+        WorkManager.getInstance(this)
+            .enqueueUniquePeriodicWork(
+                "saham_periodic",
+                ExistingPeriodicWorkPolicy.REPLACE,
+                workRequest
+            )
+    }
+
+    private fun checkPending() {
+        if (NetworkUtils.isNetworkAvailable(this)) {
+            val repo = SahamRepository(this)
+            val result = repo.sendPendingPrices()
+            if (result.contains("ارسال")) {
+                android.widget.Toast.makeText(
+                    this,
+                    result,
+                    android.widget.Toast.LENGTH_LONG
+                ).show()
+            }
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        updateUI()
+    }
+}
