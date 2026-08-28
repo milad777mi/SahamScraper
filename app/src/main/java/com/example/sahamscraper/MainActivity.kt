@@ -19,7 +19,12 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_main)
+        try {
+            setContentView(R.layout.activity_main)
+        } catch (e: Exception) {
+            android.widget.Toast.makeText(this, "خطا در setContentView: ${e.message}", android.widget.Toast.LENGTH_LONG).show()
+            return
+        }
 
         try {
             prefs = PreferencesManager(this)
@@ -37,8 +42,10 @@ class MainActivity : AppCompatActivity() {
 
             schedulePeriodic()
             checkPending()
+            
+            android.widget.Toast.makeText(this, "✅ برنامه با موفقیت اجرا شد!", android.widget.Toast.LENGTH_SHORT).show()
         } catch (e: Exception) {
-            android.widget.Toast.makeText(this, "خطا: ${e.message}", android.widget.Toast.LENGTH_LONG).show()
+            android.widget.Toast.makeText(this, "❌ خطا: ${e.message}\n${e.stackTraceToString().take(200)}", android.widget.Toast.LENGTH_LONG).show()
             e.printStackTrace()
         }
     }
@@ -55,7 +62,7 @@ class MainActivity : AppCompatActivity() {
                 statusText.text = "⏳ هنوز اجرا نشده"
             }
         } catch (e: Exception) {
-            statusText.text = "⚠️ خطا در نمایش وضعیت"
+            statusText.text = "⚠️ خطا: ${e.message}"
         }
     }
 
@@ -141,7 +148,7 @@ class MainActivity : AppCompatActivity() {
                     workRequest
                 )
         } catch (e: Exception) {
-            // خطا را نادیده بگیر
+            android.widget.Toast.makeText(this, "خطا در schedule: ${e.message}", android.widget.Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -159,7 +166,7 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         } catch (e: Exception) {
-            // خطا را نادیده بگیر
+            android.widget.Toast.makeText(this, "خطا در checkPending: ${e.message}", android.widget.Toast.LENGTH_SHORT).show()
         }
     }
 
