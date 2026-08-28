@@ -1,28 +1,29 @@
 package com.example.sahamscraper
 
 import android.os.Bundle
+import android.widget.Button
+import android.widget.TextView
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.work.*
 import com.example.sahamscraper.repository.SahamRepository
 import com.example.sahamscraper.utils.NetworkUtils
 import com.example.sahamscraper.utils.PreferencesManager
 import com.example.sahamscraper.worker.SahamWorker
-import com.google.android.material.button.MaterialButton
-import com.google.android.material.textview.MaterialTextView
 import java.util.concurrent.TimeUnit
 
 class MainActivity : AppCompatActivity() {
 
     private lateinit var prefs: PreferencesManager
-    private lateinit var statusText: MaterialTextView
-    private lateinit var intervalText: MaterialTextView
+    private lateinit var statusText: TextView
+    private lateinit var intervalText: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         try {
             setContentView(R.layout.activity_main)
         } catch (e: Exception) {
-            android.widget.Toast.makeText(this, "خطا در setContentView: ${e.message}", android.widget.Toast.LENGTH_LONG).show()
+            Toast.makeText(this, "خطا در setContentView: ${e.message}", Toast.LENGTH_LONG).show()
             return
         }
 
@@ -32,8 +33,8 @@ class MainActivity : AppCompatActivity() {
             statusText = findViewById(R.id.status_text)
             intervalText = findViewById(R.id.interval_text)
 
-            val runNowBtn = findViewById<MaterialButton>(R.id.run_now_btn)
-            val setIntervalBtn = findViewById<MaterialButton>(R.id.set_interval_btn)
+            val runNowBtn = findViewById<Button>(R.id.run_now_btn)
+            val setIntervalBtn = findViewById<Button>(R.id.set_interval_btn)
 
             updateUI()
 
@@ -42,10 +43,10 @@ class MainActivity : AppCompatActivity() {
 
             schedulePeriodic()
             checkPending()
-            
-            android.widget.Toast.makeText(this, "✅ برنامه با موفقیت اجرا شد!", android.widget.Toast.LENGTH_SHORT).show()
+
+            Toast.makeText(this, "✅ برنامه با موفقیت اجرا شد!", Toast.LENGTH_SHORT).show()
         } catch (e: Exception) {
-            android.widget.Toast.makeText(this, "❌ خطا: ${e.message}\n${e.stackTraceToString().take(200)}", android.widget.Toast.LENGTH_LONG).show()
+            Toast.makeText(this, "❌ خطا: ${e.message}\n${e.stackTraceToString().take(200)}", Toast.LENGTH_LONG).show()
             e.printStackTrace()
         }
     }
@@ -91,7 +92,7 @@ class MainActivity : AppCompatActivity() {
                     }
                 }
         } catch (e: Exception) {
-            android.widget.Toast.makeText(this, "خطا: ${e.message}", android.widget.Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "خطا: ${e.message}", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -112,17 +113,17 @@ class MainActivity : AppCompatActivity() {
                         schedulePeriodic()
                         updateUI()
                     } else {
-                        android.widget.Toast.makeText(
+                        Toast.makeText(
                             this,
                             "لطفاً عددی بین ۱ تا ۷۲ وارد کن",
-                            android.widget.Toast.LENGTH_SHORT
+                            Toast.LENGTH_SHORT
                         ).show()
                     }
                 }
                 .setNegativeButton("لغو", null)
                 .show()
         } catch (e: Exception) {
-            android.widget.Toast.makeText(this, "خطا: ${e.message}", android.widget.Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "خطا: ${e.message}", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -148,7 +149,7 @@ class MainActivity : AppCompatActivity() {
                     workRequest
                 )
         } catch (e: Exception) {
-            android.widget.Toast.makeText(this, "خطا در schedule: ${e.message}", android.widget.Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "خطا در schedule: ${e.message}", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -158,15 +159,15 @@ class MainActivity : AppCompatActivity() {
                 val repo = SahamRepository(this)
                 val result = repo.sendPendingPrices()
                 if (result.contains("ارسال")) {
-                    android.widget.Toast.makeText(
+                    Toast.makeText(
                         this,
                         result,
-                        android.widget.Toast.LENGTH_LONG
+                        Toast.LENGTH_LONG
                     ).show()
                 }
             }
         } catch (e: Exception) {
-            android.widget.Toast.makeText(this, "خطا در checkPending: ${e.message}", android.widget.Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "خطا در checkPending: ${e.message}", Toast.LENGTH_SHORT).show()
         }
     }
 
